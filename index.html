@@ -102,7 +102,7 @@
     <div class="container">
         <div class="header">
             <div class="logo">CryptoFlux Pro</div>
-            <button id="connectBtn" class="btn btn-primary">Connecter Wallet</button>
+            <button id="connectBtn" class="btn btn-primary" disabled>Connecter Wallet</button>
         </div>
 
         <div id="app" style="display:none;">
@@ -133,7 +133,7 @@
                     <option value="5000000">Extrême</option>
                 </select>
                 
-                <button id="toggleScan" class="btn btn-primary" style="margin-top: 16px;">▶️ Démarrer le Scan</button>
+                <button id="toggleScan" class="btn btn-primary" style="margin-top: 16px;" disabled>▶️ Démarrer le Scan</button>
                 <div class="status" id="scanStatus">Inactif</div>
             </div>
 
@@ -143,26 +143,26 @@
             </div>
         </div>
 
-        <div id="status">Ouvrez cette page dans l'app Phantom → Browser.</div>
+        <div id="status">Vérification du wallet...</div>
     </div>
 
     <script>
         // ===== CONFIGURATION =====
         const HELIUS_API_KEY = '1e8ea51d-3bed-4100-ad49-a6a7635c171a';
         const HELIUS_RPC_URL = `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
-        
         const PUMP_PROGRAM_ID = '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P';
         const PUMP_FEE_RECIPIENT = 'CebN5WGQ4jvEPvsVU4EoHEpgzq1VV7AbicfhtW4xC9iM';
         const RENT_SYSVAR = 'SysvarRent111111111111111111111111111111111';
         const BUY_DISCRIMINATOR = [0x66, 0x06, 0x3d, 0x12, 0x01, 0xda, 0xeb, 0xea];
+        const NETLIFY_FUNCTION_URL = 'https://gentle-kelpie-dfcb5a.netlify.app/.netlify/functions/pump-signal';
 
         // ===== Éléments DOM =====
         const statusEl = document.getElementById('status');
         const appEl = document.getElementById('app');
         const connectBtn = document.getElementById('connectBtn');
+        const toggleScanBtn = document.getElementById('toggleScan');
         const addressEl = document.getElementById('address');
         const balanceEl = document.getElementById('balance');
-        const toggleScanBtn = document.getElementById('toggleScan');
         const signalsEl = document.getElementById('signals');
         const scanStatusEl = document.getElementById('scanStatus');
 
@@ -173,11 +173,9 @@
         let scanInterval = null;
         let lastProcessedMint = null;
 
-        // ===== URL de la fonction Netlify =====
-        const NETLIFY_FUNCTION_URL = 'https://gentle-kelpie-dfcb5a.netlify.app/.netlify/functions/pump-signal';
-
         // ===== Utilitaires =====
         function getInjectedProvider() {
+            if (typeof window === 'undefined') return null;
             if (window.phantom?.solana?.isPhantom) return window.phantom.solana;
             if (window.solflare) return window.solflare;
             if (window.solana) return window.solana;
@@ -198,15 +196,15 @@
 
         // ===== Connexion wallet =====
         async function connectWallet() {
-            provider = getInjectedProvider();
-            if (!provider) {
-                log("❌ Ouvrez cette page dans Phantom Browser.");
+            const walletProvider = getInjectedProvider();
+            if (!walletProvider) {
+                log("❌ Aucun wallet détecté. Utilisez cette page dans l'app Phantom → Browser.");
                 return;
             }
 
             try {
                 log("Connexion au wallet...");
-                const resp = await provider.connect();
+                const resp = await walletProvider.connect();
                 const pubKey = resp.publicKey.toString();
 
                 connection = new solanaWeb3.Connection(HELIUS_RPC_URL, 'confirmed');
@@ -217,11 +215,13 @@
                 balanceEl.textContent = balanceSol.toFixed(4);
 
                 appEl.style.display = 'block';
+                toggleScanBtn.disabled = false;
                 log("✅ Connecté !");
 
-                if (provider.on) {
-                    provider.on('disconnect', () => {
+                if (walletProvider.on) {
+                    walletProvider.on('disconnect', () => {
                         appEl.style.display = 'none';
+                        toggleScanBtn.disabled = true;
                         log("Déconnecté");
                     });
                 }
@@ -452,9 +452,11 @@
         connectBtn.addEventListener('click', connectWallet);
         toggleScanBtn.addEventListener('click', toggleScan);
 
-        if (getInjectedProvider()) {
-            log("Wallet détecté. Cliquez pour connecter.");
-        }
-    </script>
-</body>
-</html>
+        // Vérifier la présence du wallet après un court délai
+        setTimeout(() => {
+            const provider = getInjectedProvider();
+            if (provider) {
+                log("✅ Wallet détecté !");
+                connectBtn.disabled = false;
+            } else {
+               
